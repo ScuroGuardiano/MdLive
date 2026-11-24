@@ -66,7 +66,7 @@ The script can:
 
 Top-level statements run once, every time the script is (re)loaded.
 
-`ConfigDirectory` (the `.mdlive` directory that was found, see the [README](https://github.com/ScuroGuardiano/SGLibCS/tree/master/MdLive#the-mdlive-folder))
+`ConfigDirectory` (the `.mdlive` directory that was found, see the [README](https://github.com/ScuroGuardiano/MdLive#the-mdlive-folder))
 is set after the configurator is created, so use it in methods, not in the constructor.
 
 ## What the script can use
@@ -224,7 +224,7 @@ run code as you. Hard links can't be told apart from regular files, but their co
 
 ### What was tested
 
-`MdLive/ScuroGuardiano.MdLive.Tests` (xUnit, 59 tests):
+`ScuroGuardiano.MdLive.Tests` (xUnit, 59 tests at the time of writing):
 
 - the reader: path escapes in 7 spellings, symlinked file, symlinked directory, symlinked `config.csx`,
   `nuget:`, unknown names, wrong extensions, missing files, size limits, cycles, hash stability and
