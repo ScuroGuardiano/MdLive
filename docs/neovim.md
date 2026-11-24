@@ -5,23 +5,20 @@ Markdig pipeline and `.mdlive` styles produce. Requires Neovim 0.10+.
 
 ## Install
 
-1. Install the `mdlive` tool (from a local feed, until it's published):
+1. Install the `mdlive` tool:
 
    ```sh
-   dotnet pack MdLive/ScuroGuardiano.MdLive -c Release -o ./nupkg
-   dotnet tool install -g --add-source ./nupkg ScuroGuardiano.MdLive
+   dotnet tool install -g ScuroGuardiano.MdLive
    ```
 
    Make sure `~/.dotnet/tools` is in your `PATH`.
 
-2. Add the plugin. The `mdlive/nvim` branch of this repository contains only the plugin at its
-   root, so plugin managers can use it directly, e.g. [lazy.nvim](https://github.com/folke/lazy.nvim):
+2. Add the plugin. `lua/` and `plugin/` are at the root of this repository, so plugin managers can
+   use it directly, e.g. [lazy.nvim](https://github.com/folke/lazy.nvim):
 
    ```lua
    {
-     "ScuroGuardiano/SGLibCS",
-     branch = "mdlive/nvim",
-     name = "mdlive",
+     "ScuroGuardiano/MdLive",
      ft = "markdown",
      cmd = { "MdLiveStart", "MdLiveStop", "MdLiveOpen", "MdLiveLog", "MdLiveTrust" },
      opts = {},
@@ -29,9 +26,9 @@ Markdig pipeline and `.mdlive` styles produce. Requires Neovim 0.10+.
    ```
 
    When working on the plugin itself, point lazy.nvim at the checkout instead:
-   `dir = "~/src/SGLibCS/MdLive/nvim"` in place of the repository and `branch`.
+   `dir = "~/src/MdLive"` in place of the repository.
 
-   Without a plugin manager: `vim.opt.rtp:append("~/src/SGLibCS/MdLive/nvim")` and
+   Without a plugin manager: `vim.opt.rtp:append("~/src/MdLive")` and
    `require("mdlive").setup()`.
 
 3. Optionally run `mdlive init` in your project to create `.mdlive/` with an editable
@@ -105,15 +102,14 @@ The plugin talks to `mdlive serve` over stdio:
   - `{"type":"cursor","line":42}`, 1-based cursor line, used for scroll sync.
 - Closing stdin stops the server. Logs go to stderr.
 
-## Publishing the plugin branch
+## Moving from SGLibCS
 
-`MdLive/nvim` on `master` is the source of truth, the `mdlive/nvim` branch is generated from it
-with `git subtree split`, which keeps the directory's history and moves it to the root.
-The split is deterministic, so republishing after changes is a fast-forward:
+The plugin used to live in the `mdlive/nvim` branch of
+[ScuroGuardiano/SGLibCS](https://github.com/ScuroGuardiano/SGLibCS). That branch isn't updated anymore.
+In lazy.nvim replace
 
-```sh
-git subtree split --prefix=MdLive/nvim -b mdlive/nvim master
-git push origin mdlive/nvim
+```lua
+"ScuroGuardiano/SGLibCS", branch = "mdlive/nvim", name = "mdlive",
 ```
 
-Don't commit to `mdlive/nvim` directly, the next split would not contain those commits.
+with `"ScuroGuardiano/MdLive",` and run `:Lazy sync`.
