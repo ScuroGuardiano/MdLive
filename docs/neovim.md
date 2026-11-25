@@ -46,9 +46,11 @@ Markdig pipeline and `.mdlive` styles produce. Requires Neovim 0.10+.
 
 The server runs with Neovim's current directory as its working directory, so `.mdlive/` is
 looked up there and in its parent directories. Switching to another Markdown buffer switches the preview to it.
-The preview scrolls with the window: the first visible line (`w0`) is kept at the top of the preview, whether
-the window scrolls with the mouse, `<C-e>`, `zt` or a jump. Moving the cursor inside the window doesn't move
-the preview. To follow the cursor instead, as before, set `sync = "cursor"`. The preview runs in a normal
+The preview scrolls with the window: the line in the middle of the window is kept in the middle of the preview,
+whether the window scrolls with the mouse, `<C-e>`, `zz` or a jump, or gets resized. Aligning the middle keeps
+what you look at in sync even when images, one source line each, are far taller in the preview than in Neovim.
+Moving the cursor inside the window doesn't move the preview. `scroll_anchor = "top"` aligns the first visible
+line (`w0`) with the top of the preview instead, `sync = "cursor"` follows the cursor, as before. The preview runs in a normal
 browser tab, so scrolling it doesn't move Neovim.
 Saving a file in `.mdlive/` re-renders the preview, picking up style and template changes.
 
@@ -93,6 +95,10 @@ require("mdlive").setup({
   --             VS Code preview (mouse wheel, <C-e>, zt, jumps that scroll the window)
   --   "cursor": the block with the cursor in the middle of the preview, on every cursor move
   sync = "scroll",
+  -- With sync = "scroll": which line of the window goes to the same place in the preview
+  --   "center": the middle of the window in the middle of the preview
+  --   "top":    the first visible line at the top of the preview
+  scroll_anchor = "center",
 })
 ```
 
