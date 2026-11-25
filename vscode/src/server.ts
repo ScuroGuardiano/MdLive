@@ -94,6 +94,11 @@ export class MdLiveServer implements vscode.Disposable {
     this.send({ type: "cursor", line });
   }
 
+  /** Linia źródła na górze edytora (scroll sync), 1-based. */
+  sendScroll(line: number): void {
+    this.send({ type: "scroll", line });
+  }
+
   private send(message: object): void {
     if (!this.disposed && this.process.stdin.writable) {
       this.process.stdin.write(JSON.stringify(message) + "\n");
