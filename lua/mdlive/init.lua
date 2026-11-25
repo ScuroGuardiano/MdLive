@@ -2,7 +2,8 @@
 --
 -- Protokół: jedna linia JSON na wiadomość na stdin serwera
 --   {"type":"content","path":"/abs/file.md","text":"..."}
---   {"type":"cursor","line":42}
+--   {"type":"cursor","line":42}   (sync = "cursor")
+--   {"type":"scroll","line":120}  (sync = "scroll": pierwsza widoczna linia okna)
 -- Serwer wypisuje na stdout jedną linię z portem, logi idą na stderr.
 
 local M = {}
@@ -10,7 +11,7 @@ local M = {}
 local config = {
   -- Komenda uruchamiająca serwer
   cmd = { "mdlive", "serve" },
-  -- Minimalny odstęp między wysyłkami treści i kursora podczas pisania
+  -- Minimalny odstęp między wysyłkami treści i pozycji podczas pisania
   throttle_ms = 100,
   -- Otwórz przeglądarkę, gdy serwer poda port
   open_browser = true,
@@ -21,6 +22,11 @@ local config = {
   -- Katalogi, w których .mdlive/config.csx działa bez :MdLiveTrust (mdlive serve --trust).
   -- Tylko takie, do których nikt poza Tobą nie pisze. ~ i $ZMIENNE są rozwijane.
   trusted_dirs = {},
+  -- Jak podgląd podąża za edytorem:
+  --   "scroll": jak wbudowany podgląd VS Code, pierwsza widoczna linia okna na górze podglądu
+  --             (przewijanie myszą, <C-e>, zt, skoki, które przewijają okno)
+  --   "cursor": blok z kursorem na środku podglądu, przy każdym ruchu kursora
+  sync = "scroll",
 }
 
 local state = {
@@ -35,6 +41,7 @@ local state = {
   bufnr = nil,
   sent_tick = nil,
   sent_line = nil,
+  sent_top = nil,
   -- Katalog roboczy serwera, w nim szuka .mdlive/
   cwd = nil,
 }
@@ -128,8 +135,50 @@ local function throttled(fn)
   end
 end
 
+-- Okno z podglądanym buforem: bieżące, a jeśli bieżące pokazuje co innego, pierwsze w karcie
+local function preview_window()
+  local current = vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_buf(current) == state.bufnr then
+    return current
+  end
+
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_buf(win) == state.bufnr then
+      return win
+    end
+  end
+end
+
+local function send_scroll(force)
+  if not state.bufnr then
+    return
+  end
+
+  local win = preview_window()
+  if not win then
+    return
+  end
+
+  local top = vim.fn.line("w0", win)
+  if not force and top == state.sent_top then
+    return
+  end
+
+  send({ type = "scroll", line = top })
+  state.sent_top = top
+end
+
+local function send_position(force)
+  if config.sync == "cursor" then
+    send_cursor(force)
+  else
+    send_scroll(force)
+  end
+end
+
 local throttled_content
 local throttled_cursor
+local throttled_scroll
 
 local function track_buffer(bufnr)
   if state.bufnr == bufnr then
@@ -139,8 +188,9 @@ local function track_buffer(bufnr)
   state.bufnr = bufnr
   state.sent_tick = nil
   state.sent_line = nil
+  state.sent_top = nil
   send_content(true)
-  send_cursor(true)
+  send_position(true)
 end
 
 local function on_stdout(_, data)
@@ -265,14 +315,30 @@ local function create_autocmds()
     end,
   })
 
-  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-    group = state.augroup,
-    callback = function(args)
-      if args.buf == state.bufnr then
-        throttled_cursor()
-      end
-    end,
-  })
+  if config.sync == "cursor" then
+    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+      group = state.augroup,
+      callback = function(args)
+        if args.buf == state.bufnr then
+          throttled_cursor()
+        end
+      end,
+    })
+  else
+    -- v:event ma wpis dla każdego przewiniętego okna (klucz = id okna) i "all"
+    vim.api.nvim_create_autocmd("WinScrolled", {
+      group = state.augroup,
+      callback = function()
+        for key in pairs(vim.v.event) do
+          local win = tonumber(key)
+          if win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == state.bufnr then
+            throttled_scroll()
+            return
+          end
+        end
+      end,
+    })
+  end
 
   -- Zmiana szablonu, stylów albo skryptów: serwer czyta je przy każdym renderze,
   -- więc wystarczy wymusić ponowne wysłanie treści
@@ -473,5 +539,6 @@ end
 
 throttled_content = throttled(function() send_content(false) end)
 throttled_cursor = throttled(function() send_cursor(false) end)
+throttled_scroll = throttled(function() send_scroll(false) end)
 
 return M
