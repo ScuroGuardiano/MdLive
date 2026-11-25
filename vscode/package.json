@@ -1,0 +1,107 @@
+{
+  "name": "mdlive",
+  "displayName": "MdLive",
+  "description": "Live Markdown preview rendered with your own Markdig pipeline, template and styles (mdlive), in a split next to the editor.",
+  "version": "0.1.0",
+  "publisher": "ScuroGuardiano",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ScuroGuardiano/MdLive"
+  },
+  "homepage": "https://github.com/ScuroGuardiano/MdLive/blob/master/vscode/README.md",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "markdig",
+    "preview",
+    "live preview"
+  ],
+  "main": "./out/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode the preview works, but mdlive.trustedDirs isn't applied and the config script can't be trusted from VS Code."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "mdlive.openPreview",
+        "title": "Open Preview to the Side",
+        "category": "MdLive",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "mdlive.stop",
+        "title": "Stop Preview",
+        "category": "MdLive"
+      },
+      {
+        "command": "mdlive.trust",
+        "title": "Trust Config Script (.mdlive/config.csx)",
+        "category": "MdLive",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "mdlive.showLog",
+        "title": "Show Log",
+        "category": "MdLive"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mdlive.openPreview",
+          "when": "editorLangId == markdown",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MdLive",
+      "properties": {
+        "mdlive.path": {
+          "type": "string",
+          "default": "mdlive",
+          "scope": "machine",
+          "markdownDescription": "Path to the `mdlive` executable. User settings only, a workspace can't point it at a program of its own."
+        },
+        "mdlive.trustedDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "machine",
+          "markdownDescription": "Directories where `.mdlive/config.csx` runs without trusting it first (`mdlive serve --trust`). Only ones nobody else writes to. `~`, `${userHome}` and `${env:NAME}` are expanded, missing directories are skipped. User settings only, and not applied in Restricted Mode."
+        },
+        "mdlive.throttleMs": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "markdownDescription": "Minimal interval between updates sent to the preview while typing."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package",
+    "test:e2e": "npm run compile && xvfb-run -a node test/e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.7",
+    "@types/vscode": "1.100.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.1.1",
+    "playwright-core": "1.65.1",
+    "typescript": "7.0.2"
+  }
+}
