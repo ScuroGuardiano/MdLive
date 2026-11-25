@@ -13,7 +13,7 @@ template and styles, so the browser shows exactly what your site or document gen
 
 MdLive is not a standalone editor or app. It's a small preview server meant to be **started and driven
 by an editor**: the editor sends the buffer content and cursor position, MdLive renders it and pushes
-the result to the browser as you type. A ready-made [Neovim plugin](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md) is included.
+the result to the browser as you type. A ready-made [Neovim plugin](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md) and a [VS Code extension](https://github.com/ScuroGuardiano/MdLive/blob/master/vscode/README.md) are included.
 
 - live updates while typing, before saving, morphed into the page without reloads
   ([Datastar](https://data-star.dev)),
@@ -56,6 +56,11 @@ dotnet tool install -g --add-source ./nupkg ScuroGuardiano.MdLive
 3. Open a Markdown file and run `:MdLiveStart`.
 
 See [docs/neovim.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md) for commands and options.
+
+## VS Code
+
+The [VS Code extension](https://github.com/ScuroGuardiano/MdLive/blob/master/vscode/README.md) shows the preview in a split
+next to the editor: **MdLive: Open Preview to the Side**.
 
 ## Commands
 
