@@ -29,6 +29,8 @@ const restricted = process.env.MDLIVE_E2E_RESTRICTED === '1';
 const settings = {
   'mdlive.trustedDirs': [workspace],
   ...(process.env.MDLIVE_E2E_NO_STICKY === '1' ? { 'editor.stickyScroll.enabled': false } : {}),
+  // MDLIVE_E2E_ANCHOR=top: wyrównywanie góry zamiast domyślnego środka
+  ...(process.env.MDLIVE_E2E_ANCHOR ? { 'mdlive.scrollAnchor': process.env.MDLIVE_E2E_ANCHOR } : {}),
   ...(process.env.MDLIVE_PATH ? { 'mdlive.path': process.env.MDLIVE_PATH } : {}),
   ...(restricted ? { 'security.workspace.trust.startupPrompt': 'never', 'security.workspace.trust.untrustedFiles': 'open' } : {}),
 };
@@ -36,8 +38,13 @@ mkdirSync(join(root, 'user-data', 'User'), { recursive: true });
 writeFileSync(join(root, 'user-data', 'User', 'settings.json'), JSON.stringify(settings));
 
 mkdirSync(join(workspace, '.mdlive'), { recursive: true });
-// Długi dokument dla scroll sync: 120 sekcji po nagłówku i akapicie
-const sections = Array.from({ length: 120 }, (_, i) => `## Section ${i}\n\nParagraph ${i} with some text.\n`).join('\n');
+// Długi dokument dla scroll sync: 120 sekcji po nagłówku i akapicie, co dziesiąta z obrazkiem 900 px
+// (jedna linia źródła, setki pikseli w podglądzie: przypadek, w którym wyrównana góra rozjeżdża resztę)
+const anchorMode = process.env.MDLIVE_E2E_ANCHOR === 'top' ? 'top' : 'center';
+mkdirSync(join(workspace, 'assets'), { recursive: true });
+writeFileSync(join(workspace, 'assets', 'tall.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="600" height="900" fill="#468"/></svg>');
+const sections = Array.from({ length: 120 }, (_, i) =>
+  `## Section ${i}\n\nParagraph ${i} with some text.\n` + (i % 10 === 5 ? '\n![tall](assets/tall.svg)\n' : '')).join('\n');
 writeFileSync(join(workspace, 'doc.md'), '# Hello VS Code\n\nFirst paragraph.\n\n' + sections);
 writeFileSync(join(workspace, '.mdlive', 'style.css'), 'h1 { color: rgb(200, 0, 0); }');
 writeFileSync(join(workspace, '.mdlive', 'config.csx'), `
@@ -125,17 +132,18 @@ try {
   await frame.waitForFunction(() => [...document.querySelectorAll('h2')].some((h) => h.textContent === 'Typed live'), null, { timeout: 10000 }).catch(() => {});
   check('typing updates the preview', await frame.evaluate(() => [...document.querySelectorAll('h2')].some((h) => h.textContent === 'Typed live')));
 
-  // Scroll sync. Góra edytora: najmniejszy numer w marginesie, który jest jeszcze widoczny.
-  const editorTopLine = () => window.evaluate(() => {
+  // Scroll sync. Kotwica edytora z numerów w marginesie, które są jeszcze widoczne: pierwszy (top) albo środek
+  // między pierwszym a ostatnim (center), tak jak liczy rozszerzenie z visibleRanges.
+  const editorTopLine = () => window.evaluate((mode) => {
     const editor = document.querySelector('.editor-instance .monaco-editor');
-    const top = editor.getBoundingClientRect().top;
+    const box = editor.getBoundingClientRect();
     const numbers = [...editor.querySelectorAll('.margin-view-overlays .line-numbers')]
-      .filter((e) => e.getBoundingClientRect().bottom > top + 2)
+      .filter((e) => e.getBoundingClientRect().bottom > box.top + 2 && e.getBoundingClientRect().top < box.bottom - 2)
       .map((e) => Number(e.textContent))
       .filter(Number.isFinite);
-    return Math.min(...numbers);
-  });
-  const previewTopLine = () => frame.evaluate(() => window.mdlive.lineAtOffset(window.scrollY));
+    return mode === 'center' ? (Math.min(...numbers) + Math.max(...numbers)) / 2 : Math.min(...numbers);
+  }, anchorMode);
+  const previewTopLine = () => frame.evaluate(() => window.mdlive.anchorLine());
   // Prostokąt okna edytora, nie .view-lines: ten ma wysokość całego dokumentu i przesuwa się z przewijaniem
   const editorBox = await window.locator('.editor-instance .monaco-editor').first().boundingBox();
   const webviewBox = await window.locator('iframe.webview').first().boundingBox();
@@ -153,7 +161,7 @@ try {
   await sleep(1500);
   let e = await editorTopLine();
   let p = await previewTopLine();
-  check('scrolling the editor scrolls the preview to the same line', e > 20 && Math.abs(p - e) <= 1.5, `editor ${e}, preview ${p.toFixed(1)}`);
+  check(`[${anchorMode}] scrolling the editor scrolls the preview to the same line`, e > 20 && Math.abs(p - e) <= 1.5, `editor ${e}, preview ${p.toFixed(1)}`);
 
   // Podgląd -> kod: kółko nad podglądem
   const beforeEditor = e;
@@ -162,7 +170,7 @@ try {
   await sleep(1500);
   e = await editorTopLine();
   p = await previewTopLine();
-  check('scrolling the preview scrolls the editor to the same line', e > beforeEditor + 20 && Math.abs(e - Math.floor(p)) <= 1,
+  check(`[${anchorMode}] scrolling the preview scrolls the editor to the same line`, e > beforeEditor + 20 && Math.abs(e - p) <= 1.5,
     `editor ${beforeEditor} -> ${e}, preview ${p.toFixed(1)}`);
 
   // Bez ping-ponga: po zatrzymaniu nic się samo nie przesuwa
@@ -177,7 +185,17 @@ try {
   await sleep(1500);
   const typedE = await editorTopLine();
   const typedP = await previewTopLine();
-  check('typing does not make the editor jump, preview keeps its position', typedE === stillE && Math.abs(typedP - stillP) < 1.5 && typedE === Math.floor(typedP), `editor ${stillE} -> ${typedE}, preview ${typedP.toFixed(1)}`);
+  check('typing does not make the editor jump, preview keeps its position', typedE === stillE && Math.abs(typedP - stillP) < 1.5 && Math.abs(typedE - typedP) <= 1.5, `editor ${stillE} -> ${typedE}, preview ${typedP.toFixed(1)}`);
+
+  // Przypadek ze zgłoszenia: linia ze środka edytora ma być na środku widocznej części podglądu, mimo obrazków
+  // po 900 px między górą a środkiem. Przy wyrównanej tylko górze lądowała na dole albo poza ekranem.
+  if (anchorMode === 'center') {
+    const middle = await editorTopLine();
+    const where = await frame.evaluate((line) => ({ y: window.mdlive.offsetOfLine(line) - window.scrollY, h: window.innerHeight }), middle);
+    // Środkowa połowa widoku: w obrębie obrazka jedna linia źródła to setki pikseli, a edytor nie ma pozycji między liniami
+    check('line in the middle of the editor is in the middle of the preview (tall images)', where.y >= where.h * 0.25 && where.y <= where.h * 0.75,
+      `line ${middle} at y=${Math.round(where.y)} of ${where.h}`);
+  }
 
   // Przeładowanie webview: iframe ładuje się od nowa bez tokenu, sesję trzyma tylko ciasteczko Partitioned
   await runCommand('Developer: Reload Webviews');

@@ -41,6 +41,23 @@ function workingDirectoryFor(document: vscode.TextDocument): string {
   return vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? path.dirname(document.uri.fsPath);
 }
 
+/** Który punkt edytora i podglądu jest wyrównywany przy scroll sync. */
+type ScrollAnchor = "center" | "top";
+
+/**
+ * Linia kotwicy w edytorze (1-based, może być połówkowa): pierwsza widoczna albo środek widocznego zakresu.
+ * Ta sama definicja w obie strony: przy wysyłaniu do podglądu i przy sprawdzaniu, gdzie wylądował revealRange.
+ */
+function anchorLine(visibleRanges: readonly vscode.Range[], anchor: ScrollAnchor): number | undefined {
+  const first = visibleRanges[0];
+  const last = visibleRanges[visibleRanges.length - 1];
+  if (!first || !last) {
+    return undefined;
+  }
+
+  return anchor === "center" ? (first.start.line + last.end.line) / 2 + 1 : first.start.line + 1;
+}
+
 /** Jeden podgląd: panel webview na splicie, serwer mdlive i śledzony dokument. */
 export class PreviewSession implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
@@ -51,7 +68,7 @@ export class PreviewSession implements vscode.Disposable {
   /** Do tej chwili zmiany widocznego zakresu edytora pochodzą z revealRange po przewinięciu podglądu. */
   private ignoreEditorScrollUntil = 0;
   /** Trwające odsłanianie linii z podglądu w edytorze, z poprawkami na sticky scroll. */
-  private revealing: { target: number; requested: number; corrections: number } | undefined;
+  private revealing: { target: number; requested: number; corrections: number; anchor: ScrollAnchor } | undefined;
   private disposed = false;
 
   private readonly sendContentThrottled = throttled(() => this.sendContent(false), () => this.throttleMs());
@@ -186,19 +203,23 @@ export class PreviewSession implements vscode.Disposable {
       : vscode.window.visibleTextEditors.find((editor) => editor.document === this.document);
   }
 
+  private scrollAnchor(): ScrollAnchor {
+    return vscode.workspace.getConfiguration("mdlive").get<string>("scrollAnchor", "center") === "top" ? "top" : "center";
+  }
+
   private sendScroll(force: boolean): void {
-    const range = this.editor()?.visibleRanges[0];
-    if (!range) {
+    const editor = this.editor();
+    const anchor = this.scrollAnchor();
+    const line = editor && anchorLine(editor.visibleRanges, anchor);
+    if (line === undefined) {
       return;
     }
 
-    // Linie w VS Code od 0, w protokole od 1
-    const line = range.start.line + 1;
     if (!force && line === this.sentScrollLine) {
       return;
     }
 
-    this.server.sendScroll(line);
+    this.server.sendScroll(line, anchor);
     this.sentScrollLine = line;
   }
 
@@ -207,7 +228,7 @@ export class PreviewSession implements vscode.Disposable {
       return;
     }
 
-    const { type, line } = message as { type?: unknown; line?: unknown };
+    const { type, line, anchor: rawAnchor } = message as { type?: unknown; line?: unknown; anchor?: unknown };
     if (type !== "scroll" || typeof line !== "number" || !Number.isFinite(line)) {
       return;
     }
@@ -217,36 +238,42 @@ export class PreviewSession implements vscode.Disposable {
       return;
     }
 
-    const target = Math.min(Math.max(Math.floor(line), 1), this.document.lineCount);
-    this.sentScrollLine = target;
-    this.revealing = { target, requested: target, corrections: 0 };
-    this.revealAtTop(editor, target);
+    // Kotwica z podglądu: ta, którą ostatnio mu wysłaliśmy
+    const anchor: ScrollAnchor = rawAnchor === "center" ? "center" : "top";
+    const target = Math.min(Math.max(anchor === "center" ? Math.round(line) : Math.floor(line), 1), this.document.lineCount);
+    this.sentScrollLine = line;
+    this.revealing = { target, requested: target, corrections: 0, anchor };
+    this.revealInEditor(editor, target, anchor);
 
     // Serwer odtwarza ostatnią linię po każdej zmianie treści, więc musi znać tę z podglądu, a nie starą
     // z edytora. Dokładna wartość: strona już tam jest, więc jej scrollToLine nic nie zrobi.
-    this.server.sendScroll(line);
+    this.server.sendScroll(line, anchor);
   }
 
-  private revealAtTop(editor: vscode.TextEditor, line: number): void {
+  private revealInEditor(editor: vscode.TextEditor, line: number, anchor: ScrollAnchor): void {
     // revealRange zmieni widoczny zakres, a to nie może wrócić do podglądu jako przewinięcie edytora
     this.ignoreEditorScrollUntil = Date.now() + 300;
-    editor.revealRange(new vscode.Range(line - 1, 0, line - 1, 0), vscode.TextEditorRevealType.AtTop);
+    editor.revealRange(
+      new vscode.Range(line - 1, 0, line - 1, 0),
+      anchor === "center" ? vscode.TextEditorRevealType.InCenter : vscode.TextEditorRevealType.AtTop,
+    );
   }
 
   /**
-   * Sticky scroll (domyślnie włączony, w markdownie przypina nagłówki) sprawia, że AtTop stawia linię pod
-   * przypiętymi nagłówkami, więc góra okna wypada kilka linii wyżej. W drugą stronę liczymy górę okna
-   * (visibleRanges), więc tu też: odsłaniamy dalej o tyle, o ile się rozjechało. Najwyżej dwa razy,
-   * bo liczba przypiętych nagłówków może się przy tym zmienić.
+   * revealRange nie zawsze trafia dokładnie tam, gdzie liczymy kotwicę: sticky scroll (domyślnie włączony,
+   * w markdownie przypina nagłówki) sprawia, że AtTop stawia linię pod przypiętymi nagłówkami, więc góra okna
+   * wypada kilka linii wyżej. Mierzymy kotwicę tak samo jak przy wysyłaniu (anchorLine) i odsłaniamy dalej
+   * o tyle, o ile się rozjechało. Najwyżej dwa razy, bo liczba przypiętych nagłówków może się przy tym zmienić,
+   * a przy początku dokumentu środka nie da się ustawić wyżej niż na górze.
    */
   private correctReveal(editor: vscode.TextEditor, visibleRanges: readonly vscode.Range[]): void {
     const reveal = this.revealing;
-    const top = visibleRanges[0]?.start.line;
-    if (!reveal || top === undefined) {
+    const current = reveal && anchorLine(visibleRanges, reveal.anchor);
+    if (!reveal || current === undefined) {
       return;
     }
 
-    const difference = reveal.target - (top + 1);
+    const difference = Math.round(reveal.target - current);
     if (difference === 0 || reveal.corrections >= 2) {
       this.revealing = undefined;
       return;
@@ -254,7 +281,7 @@ export class PreviewSession implements vscode.Disposable {
 
     reveal.corrections++;
     reveal.requested = Math.min(Math.max(reveal.requested + difference, 1), this.document.lineCount);
-    this.revealAtTop(editor, reveal.requested);
+    this.revealInEditor(editor, reveal.requested, reveal.anchor);
   }
 
   private html(): string {
@@ -286,7 +313,7 @@ export class PreviewSession implements vscode.Disposable {
       }
       const data = event.data;
       if (data && data.type === "mdlive.scroll" && Number.isFinite(data.line)) {
-        vscode.postMessage({ type: "scroll", line: data.line });
+        vscode.postMessage({ type: "scroll", line: data.line, anchor: data.anchor === "center" ? "center" : "top" });
       }
     });
   </script>
