@@ -3,7 +3,7 @@
 -- Protokół: jedna linia JSON na wiadomość na stdin serwera
 --   {"type":"content","path":"/abs/file.md","text":"..."}
 --   {"type":"cursor","line":42}   (sync = "cursor")
---   {"type":"scroll","line":120}  (sync = "scroll": pierwsza widoczna linia okna)
+--   {"type":"scroll","line":120,"anchor":"center"}  (sync = "scroll": środek albo góra okna)
 -- Serwer wypisuje na stdout jedną linię z portem, logi idą na stderr.
 
 local M = {}
@@ -27,6 +27,11 @@ local config = {
   --             (przewijanie myszą, <C-e>, zt, skoki, które przewijają okno)
   --   "cursor": blok z kursorem na środku podglądu, przy każdym ruchu kursora
   sync = "scroll",
+  -- Przy sync = "scroll": która linia okna trafia w to samo miejsce podglądu
+  --   "center": środek okna na środku podglądu. Obrazek to jedna linia w edytorze i setki pikseli w podglądzie;
+  --             przy wyrównanej górze reszta się rozjeżdża, przy środku to, na co patrzysz, zawsze się zgadza
+  --   "top":    pierwsza widoczna linia na górze podglądu
+  scroll_anchor = "center",
 }
 
 local state = {
@@ -159,13 +164,16 @@ local function send_scroll(force)
     return
   end
 
+  local anchor = config.scroll_anchor == "top" and "top" or "center"
   local top = vim.fn.line("w0", win)
-  if not force and top == state.sent_top then
+  -- Środek: średnia pierwszej i ostatniej widocznej linii (przy zawijaniu i foldach to przybliżenie)
+  local line = anchor == "center" and (top + vim.fn.line("w$", win)) / 2 or top
+  if not force and line == state.sent_top then
     return
   end
 
-  send({ type = "scroll", line = top })
-  state.sent_top = top
+  send({ type = "scroll", line = line, anchor = anchor })
+  state.sent_top = line
 end
 
 local function send_position(force)
@@ -326,11 +334,20 @@ local function create_autocmds()
     })
   else
     -- v:event ma wpis dla każdego przewiniętego okna (klucz = id okna) i "all"
-    vim.api.nvim_create_autocmd("WinScrolled", {
+    -- WinScrolled: v:event ma wpis dla każdego przewiniętego okna (klucz = id okna) i "all".
+    -- WinResized: v:event.windows to lista okien; zmiana wysokości przesuwa środek okna bez przewijania.
+    vim.api.nvim_create_autocmd({ "WinScrolled", "WinResized" }, {
       group = state.augroup,
       callback = function()
-        for key in pairs(vim.v.event) do
-          local win = tonumber(key)
+        local windows = vim.v.event.windows
+        if not windows then
+          -- Nie tbl_map(tonumber, ...): "all" dałoby nil, a ipairs kończy się na pierwszym nil
+          windows = {}
+          for key in pairs(vim.v.event) do
+            table.insert(windows, tonumber(key))
+          end
+        end
+        for _, win in pairs(windows) do
           if win and vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == state.bufnr then
             throttled_scroll()
             return
