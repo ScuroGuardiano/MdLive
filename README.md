@@ -13,7 +13,7 @@ template and styles, so the browser shows exactly what your site or document gen
 
 MdLive is not a standalone editor or app. It's a small preview server meant to be **started and driven
 by an editor**: the editor sends the buffer content and cursor position, MdLive renders it and pushes
-the result to the browser as you type. A ready-made [Neovim plugin](https://github.com/ScuroGuardiano/SGLibCS/tree/master/MdLive/nvim) is included.
+the result to the browser as you type. A ready-made [Neovim plugin](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md) is included.
 
 - live updates while typing, before saving, morphed into the page without reloads
   ([Datastar](https://data-star.dev)),
@@ -40,14 +40,12 @@ dotnet tool install -g --add-source ./nupkg ScuroGuardiano.MdLive
 
 ## Quick start with Neovim
 
-1. Add the plugin, e.g. with [lazy.nvim](https://github.com/folke/lazy.nvim). The `mdlive/nvim` branch
-   of this repository contains only the plugin:
+1. Add the plugin, e.g. with [lazy.nvim](https://github.com/folke/lazy.nvim). It's at the root of this
+   repository:
 
    ```lua
    {
-     "ScuroGuardiano/SGLibCS",
-     branch = "mdlive/nvim",
-     name = "mdlive",
+     "ScuroGuardiano/MdLive",
      ft = "markdown",
      cmd = { "MdLiveStart", "MdLiveStop", "MdLiveOpen", "MdLiveLog", "MdLiveTrust" },
      opts = {},
@@ -57,7 +55,7 @@ dotnet tool install -g --add-source ./nupkg ScuroGuardiano.MdLive
 2. Optionally run `mdlive init` in your project to get an editable `.mdlive/` folder.
 3. Open a Markdown file and run `:MdLiveStart`.
 
-See [nvim/README.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/nvim/README.md) for commands and options.
+See [docs/neovim.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md) for commands and options.
 
 ## Commands
 
@@ -97,7 +95,7 @@ meant to be overridden in `config.csx`, see [docs/scripting.md](https://github.c
 `mdlive serve` talks to the editor over stdio: it prints one line on stdout telling the editor where
 the preview is, reads one JSON message per line on stdin (buffer content, cursor line) and exits when
 stdin is closed. Logs go to stderr. The exact protocol is described in
-[nvim/README.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/nvim/README.md#protocol), which is also the reference implementation for other editors.
+[docs/neovim.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md#protocol), which is also the reference implementation for other editors.
 
 ## Security
 
