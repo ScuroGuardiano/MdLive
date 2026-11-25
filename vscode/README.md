@@ -2,7 +2,7 @@
 
 Live preview of Markdown rendered by [MdLive](https://github.com/ScuroGuardiano/MdLive) with **your own**
 Markdig pipeline, template and styles from `.mdlive/`, in a split next to the editor. It updates as you type and
-keeps the block under the cursor in view.
+scrolls together with the editor both ways, like the built-in Markdown preview.
 
 ## Requirements
 
@@ -19,6 +19,11 @@ or set `mdlive.path`.
 
 Open a Markdown file and run **MdLive: Open Preview to the Side**, or use the preview button in the editor title.
 Switching to another Markdown file switches the preview to it. Saving a file in `.mdlive/` re-renders it.
+
+**Scroll sync** works both ways: scrolling the editor puts the same source line at the top of the preview, and
+scrolling the preview (wheel, keyboard, scrollbar) scrolls the editor. Changes in the preview's layout while you
+type don't move the editor. With sticky scroll on, the line ends up at the top of the editor, under the pinned
+headings, the same way the preview is aligned when you scroll the editor.
 
 | Command                               | Description                                                     |
 |---------------------------------------|-----------------------------------------------------------------|
