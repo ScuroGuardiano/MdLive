@@ -20,10 +20,11 @@ or set `mdlive.path`.
 Open a Markdown file and run **MdLive: Open Preview to the Side**, or use the preview button in the editor title.
 Switching to another Markdown file switches the preview to it. Saving a file in `.mdlive/` re-renders it.
 
-**Scroll sync** works both ways: scrolling the editor puts the same source line at the top of the preview, and
-scrolling the preview (wheel, keyboard, scrollbar) scrolls the editor. Changes in the preview's layout while you
-type don't move the editor. With sticky scroll on, the line ends up at the top of the editor, under the pinned
-headings, the same way the preview is aligned when you scroll the editor.
+**Scroll sync** works both ways: scrolling the editor puts the source line from the middle of the editor in the
+middle of the preview, and scrolling the preview (wheel, keyboard, scrollbar) scrolls the editor the same way.
+Aligning the middle keeps what you look at in sync even when images, one source line each, are far taller in
+the preview. Changes in the preview's layout while you type don't move the editor. To align the top instead, like
+the built-in Markdown preview, set `mdlive.scrollAnchor` to `top`.
 
 | Command                               | Description                                                     |
 |---------------------------------------|-----------------------------------------------------------------|
@@ -38,6 +39,7 @@ headings, the same way the preview is aligned when you scroll the editor.
 |----------------------|------------|-----------------------------------------------------------------------------|
 | `mdlive.path`        | `"mdlive"` | Path to the `mdlive` executable.                                            |
 | `mdlive.trustedDirs` | `[]`       | Directories where `.mdlive/config.csx` runs without trusting it first (`mdlive serve --trust`). `~`, `${userHome}` and `${env:NAME}` are expanded, missing directories are skipped. |
+| `mdlive.scrollAnchor` | `"center"` | Line aligned by scroll sync: `center` (middle of the editor and preview) or `top`. |
 | `mdlive.throttleMs`  | `100`      | Minimal interval between updates while typing.                              |
 
 `mdlive.path` and `mdlive.trustedDirs` can only be set in **user** settings. A repository's

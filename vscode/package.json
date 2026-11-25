@@ -81,6 +81,19 @@
           "scope": "machine",
           "markdownDescription": "Directories where `.mdlive/config.csx` runs without trusting it first (`mdlive serve --trust`). Only ones nobody else writes to. `~`, `${userHome}` and `${env:NAME}` are expanded, missing directories are skipped. User settings only, and not applied in Restricted Mode."
         },
+        "mdlive.scrollAnchor": {
+          "type": "string",
+          "enum": [
+            "center",
+            "top"
+          ],
+          "default": "center",
+          "enumDescriptions": [
+            "The line in the middle of the editor is kept in the middle of the preview. What you look at stays in sync even when images make the preview much taller than the source.",
+            "The line at the top of the editor is kept at the top of the preview, like the built-in Markdown preview. Tall images make the rest drift apart."
+          ],
+          "markdownDescription": "Which line scroll sync aligns between the editor and the preview."
+        },
         "mdlive.throttleMs": {
           "type": "number",
           "default": 100,
