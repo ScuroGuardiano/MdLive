@@ -65,6 +65,19 @@ npm run test:e2e   # real VS Code under xvfb-run, needs mdlive with --embedded i
 npm run package    # mdlive-<version>.vsix
 ```
 
+## Releasing
+
+Bump `version` in `package.json`, merge it, then push a tag `vscode/v<version>`:
+
+```sh
+git tag vscode/v0.1.0
+git push origin vscode/v0.1.0
+```
+
+`.github/workflows/vscode-release.yml` checks that the tag matches `package.json`, packages the extension, and
+creates a GitHub release with `mdlive-<version>.vsix` and the changes since the previous `vscode/v*` tag. Only
+`X.Y.Z` versions are accepted, the Marketplace doesn't allow semver pre-release suffixes.
+
 `test/e2e.mjs` drives VS Code through Playwright. It opens the preview, reads the framed page inside the webview,
 types in the editor, reloads the webview (the session has to survive on the partitioned cookie), and checks
 `mdlive.trustedDirs`. With `MDLIVE_E2E_RESTRICTED=1` it runs the same in Restricted Mode.
