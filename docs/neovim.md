@@ -46,6 +46,10 @@ Markdig pipeline and `.mdlive` styles produce. Requires Neovim 0.10+.
 
 The server runs with Neovim's current directory as its working directory, so `.mdlive/` is
 looked up there and in its parent directories. Switching to another Markdown buffer switches the preview to it.
+The preview scrolls with the window: the first visible line (`w0`) is kept at the top of the preview, whether
+the window scrolls with the mouse, `<C-e>`, `zt` or a jump. Moving the cursor inside the window doesn't move
+the preview. To follow the cursor instead, as before, set `sync = "cursor"`. The preview runs in a normal
+browser tab, so scrolling it doesn't move Neovim.
 Saving a file in `.mdlive/` re-renders the preview, picking up style and template changes.
 
 ### Trusting `config.csx`
@@ -84,6 +88,11 @@ require("mdlive").setup({
   -- Directories where .mdlive/config.csx runs without :MdLiveTrust (passed as mdlive serve --trust).
   -- Only ones nobody else writes to. ~ and $VARIABLES are expanded, missing directories skipped.
   trusted_dirs = {},
+  -- How the preview follows the editor:
+  --   "scroll": the first visible line of the window at the top of the preview, like the built-in
+  --             VS Code preview (mouse wheel, <C-e>, zt, jumps that scroll the window)
+  --   "cursor": the block with the cursor in the middle of the preview, on every cursor move
+  sync = "scroll",
 })
 ```
 
@@ -100,11 +109,11 @@ The plugin talks to `mdlive serve` over stdio:
 - **stdin**: one JSON message per line:
   - `{"type":"content","path":"/abs/file.md","text":"..."}`, the whole buffer,
   - `{"type":"cursor","line":42}`, 1-based cursor line. The preview brings the block with the cursor to the
-    middle of the screen (what this plugin uses),
+    middle of the screen (this plugin with `sync = "cursor"`),
   - `{"type":"scroll","line":120.5}`, the source line at the top of the editor, 1-based, may be fractional.
     The preview puts that line at its top, interpolating between blocks with `data-line`, and does it again
     after every content change. Editors that follow their own scrolling (the VS Code extension) send this
-    instead of `cursor`.
+    instead of `cursor` (this plugin by default, `sync = "scroll"`).
 - Closing stdin stops the server. Logs go to stderr.
 - **Preview to editor** (only when the preview is framed, `--embedded`): when the user scrolls the preview
   (wheel, keyboard, dragging the scrollbar), the page sends the parent frame
