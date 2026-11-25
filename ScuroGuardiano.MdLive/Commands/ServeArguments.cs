@@ -16,19 +16,34 @@ namespace ScuroGuardiano.MdLive.Commands;
 /// also come from an environment variable.</item>
 /// <item><c>--AllowedHosts &lt;hosts&gt;</c> and <c>--Logging:&lt;key&gt; &lt;value&gt;</c>: passed to the
 /// configuration as <c>--Key=value</c>. Names are case-insensitive, like configuration keys.</item>
+/// <item><c>--embedded</c>, <c>--frame-ancestors &lt;sources&gt;</c>: a preview framed inside an editor, see
+/// <c>Program.cs</c> (session cookie) and the README.</item>
 /// <item><c>--help</c>, <c>-h</c>.</item>
 /// </list>
 /// Each option takes its value either as <c>--option value</c> or <c>--option=value</c>.
 /// </para>
 /// </summary>
-internal sealed record ServeArguments(IReadOnlyList<string> TrustedDirectories, string[] ConfigurationArgs, bool ShowHelp)
+internal sealed record ServeArguments(
+    IReadOnlyList<string> TrustedDirectories,
+    string[] ConfigurationArgs,
+    bool ShowHelp,
+    bool Embedded = false,
+    string? FrameAncestors = null)
 {
+    /// <summary>
+    /// Who may embed the preview with <c>--embedded</c>: VS Code webviews (<c>vscode-webview:</c>) inside the
+    /// workbench (<c>vscode-file:</c>). CSP <c>frame-ancestors</c> checks every ancestor, not only the parent.
+    /// </summary>
+    public const string DefaultFrameAncestors = "'self' vscode-webview: vscode-file:";
+
     public static ServeArguments Parse(IReadOnlyList<string> args, out IReadOnlyList<string> errors)
     {
         var trusted = new List<string>();
         var configuration = new List<string>();
         var problems = new List<string>();
         var showHelp = false;
+        var embedded = false;
+        string? frameAncestors = null;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -64,6 +79,29 @@ internal sealed record ServeArguments(IReadOnlyList<string> TrustedDirectories, 
             {
                 AddTrusted(TakeValue(), trusted, problems);
             }
+            else if (name == "--embedded")
+            {
+                if (separator >= 0)
+                {
+                    problems.Add("--embedded takes no value");
+                }
+
+                embedded = true;
+            }
+            else if (name == "--frame-ancestors")
+            {
+                frameAncestors = TakeValue();
+
+                // Wartość idzie wprost do nagłówka CSP: bez średnika nie dopisze się innej dyrektywy
+                if (string.IsNullOrWhiteSpace(frameAncestors))
+                {
+                    problems.Add("--frame-ancestors needs a value");
+                }
+                else if (frameAncestors.Contains(';') || frameAncestors.Contains(',') || frameAncestors.Any(char.IsControl))
+                {
+                    problems.Add("--frame-ancestors: only CSP source expressions, without ; or ,");
+                }
+            }
             else if (name.Equals("--AllowedHosts", StringComparison.OrdinalIgnoreCase)
                      || (name.StartsWith("--Logging:", StringComparison.OrdinalIgnoreCase) && name.Length > "--Logging:".Length))
             {
@@ -83,8 +121,14 @@ internal sealed record ServeArguments(IReadOnlyList<string> TrustedDirectories, 
             }
         }
 
+        if (frameAncestors is not null && !embedded)
+        {
+            problems.Add("--frame-ancestors only makes sense with --embedded");
+        }
+
         errors = problems;
-        return new ServeArguments(trusted, [.. configuration], showHelp);
+        return new ServeArguments(trusted, [.. configuration], showHelp,
+            embedded, embedded ? frameAncestors ?? DefaultFrameAncestors : null);
     }
 
     private static void AddTrusted(string? value, List<string> trusted, List<string> problems)

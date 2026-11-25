@@ -46,7 +46,7 @@ internal static class DocumentFilesEndpoint
             context.Response.Headers.CacheControl = "no-cache";
             context.Response.Headers.XContentTypeOptions = "nosniff";
             // SVG otwarte bezpośrednio wykonałoby skrypty w originie podglądu
-            context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'";
+            context.Response.Headers.Append(HeaderNames.ContentSecurityPolicy, "default-src 'none'; style-src 'unsafe-inline'");
 
             var etag = new EntityTagHeaderValue($"\"{file.LastWriteTimeUtc.Ticks:x}-{file.Length:x}\"");
             return Results.File(file.FullName, contentType, lastModified: file.LastWriteTimeUtc, entityTag: etag);
