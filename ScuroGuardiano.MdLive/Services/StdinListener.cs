@@ -73,6 +73,10 @@ internal sealed class StdinListener : BackgroundService
                 case EditorMessage.Cursor cursor:
                     _hub.PublishCursor(cursor.Line);
                     break;
+
+                case EditorMessage.Scroll scroll when double.IsFinite(scroll.Line):
+                    _hub.PublishScroll(Math.Max(1, scroll.Line));
+                    break;
             }
         }
     }

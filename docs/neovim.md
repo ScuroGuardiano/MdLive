@@ -99,8 +99,17 @@ The plugin talks to `mdlive serve` over stdio:
   answers only the login page, everything else is `401`.
 - **stdin**: one JSON message per line:
   - `{"type":"content","path":"/abs/file.md","text":"..."}`, the whole buffer,
-  - `{"type":"cursor","line":42}`, 1-based cursor line, used for scroll sync.
+  - `{"type":"cursor","line":42}`, 1-based cursor line. The preview brings the block with the cursor to the
+    middle of the screen (what this plugin uses),
+  - `{"type":"scroll","line":120.5}`, the source line at the top of the editor, 1-based, may be fractional.
+    The preview puts that line at its top, interpolating between blocks with `data-line`, and does it again
+    after every content change. Editors that follow their own scrolling (the VS Code extension) send this
+    instead of `cursor`.
 - Closing stdin stops the server. Logs go to stderr.
+- **Preview to editor** (only when the preview is framed, `--embedded`): when the user scrolls the preview
+  (wheel, keyboard, dragging the scrollbar), the page sends the parent frame
+  `postMessage({ type: "mdlive.scroll", line: 120.5 })` with the source line now at its top. Scrolling caused
+  by `scroll` messages or by content changes isn't reported, so editor and preview don't keep moving each other.
 
 ## Moving from SGLibCS
 

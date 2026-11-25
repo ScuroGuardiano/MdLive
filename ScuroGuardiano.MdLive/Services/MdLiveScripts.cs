@@ -56,7 +56,130 @@ internal static class MdLiveScripts
 
                 // Płynnie tylko krótkie skoki; długie (gg, G, :300) od razu, żeby animacje się nie nakładały
                 window.scrollTo({ top, behavior: distance < viewport ? "smooth" : "instant" });
+            },
+
+            // --- Scroll sync: góra podglądu <-> linia źródła na górze edytora ---
+
+            _suppressUntil: 0,
+
+            // Bloki z data-line: jeden na linię (pierwszy w kolejności dokumentu, czyli zewnętrzny,
+            // zaczyna się w tym samym miejscu), z pozycją względem początku strony, posortowane po linii
+            _blocks() {
+                const blocks = [];
+                for (const el of document.querySelectorAll('[data-line]')) {
+                    const line = parseInt(el.dataset.line, 10);
+                    const rect = el.getBoundingClientRect();
+                    if (!Number.isFinite(line) || (rect.width === 0 && rect.height === 0)) {
+                        continue;
+                    }
+                    blocks.push({ line, top: window.scrollY + rect.top });
+                }
+
+                blocks.sort((a, b) => a.line - b.line || a.top - b.top);
+                return blocks.filter((b, i) => i === 0 || b.line !== blocks[i - 1].line);
+            },
+
+            // Linia źródła -> pozycja na stronie, z interpolacją między sąsiednimi blokami.
+            // Blok bez data-line (np. kod z ColorCode) wypada wtedy mniej więcej na swoje miejsce.
+            offsetOfLine(line) {
+                const blocks = this._blocks();
+                let prev = null;
+                let next = null;
+                for (const block of blocks) {
+                    if (block.line <= line) {
+                        prev = block;
+                    } else {
+                        next = block;
+                        break;
+                    }
+                }
+
+                if (!prev) {
+                    return 0;
+                }
+
+                if (!next) {
+                    return prev.top;
+                }
+
+                return prev.top + (next.top - prev.top) * (line - prev.line) / (next.line - prev.line);
+            },
+
+            // Pozycja na stronie -> linia źródła, odwrotność offsetOfLine
+            lineAtOffset(offset) {
+                const blocks = this._blocks();
+                if (blocks.length === 0) {
+                    return 1;
+                }
+
+                let index = -1;
+                for (let i = 0; i < blocks.length; i++) {
+                    if (blocks[i].top <= offset) {
+                        index = i;
+                    }
+                }
+
+                if (index < 0) {
+                    // Nad pierwszym blokiem (np. margines strony): proporcjonalnie od linii 1
+                    const first = blocks[0];
+                    return first.top <= 0 ? first.line : 1 + (first.line - 1) * Math.max(0, offset) / first.top;
+                }
+
+                const prev = blocks[index];
+                const next = blocks[index + 1];
+                if (!next || next.top <= prev.top) {
+                    return prev.line;
+                }
+
+                return prev.line + (next.line - prev.line) * Math.min(1, (offset - prev.top) / (next.top - prev.top));
+            },
+
+            // Wołane przez serwer, gdy edytor się przewinie: linia z góry edytora na górze podglądu
+            scrollToLine(line) {
+                const top = Math.max(0, Math.round(this.offsetOfLine(line)));
+                if (Math.abs(top - window.scrollY) < 1) {
+                    return;
+                }
+
+                // Własne przewinięcie nie może wrócić do edytora jako przewinięcie użytkownika
+                this._suppressUntil = performance.now() + 150;
+                window.scrollTo({ top, behavior: "instant" });
             }
         };
+
+        // Podgląd osadzony w edytorze (np. webview VS Code): przewinięcia użytkownika idą do ramki nadrzędnej,
+        // która przekazuje je edytorowi. W zwykłej karcie przeglądarki nie ma komu ich wysłać.
+        (() => {
+            if (window.parent === window) {
+                return;
+            }
+
+            // Tylko przewinięcia od użytkownika. Zmiana treści w trakcie pisania też przesuwa stronę
+            // (i zdarzenie scroll wygląda tak samo), a odesłanie tego do edytora szarpałoby nim przy każdym znaku.
+            let lastInput = -Infinity;
+            let pointerDown = false;
+            const markInput = () => { lastInput = performance.now(); };
+            for (const type of ["wheel", "touchmove", "keydown"]) {
+                window.addEventListener(type, markInput, { passive: true, capture: true });
+            }
+            // Przeciąganie paska przewijania trwa dowolnie długo
+            window.addEventListener("pointerdown", () => { pointerDown = true; markInput(); }, { capture: true });
+            window.addEventListener("pointerup", () => { pointerDown = false; markInput(); }, { capture: true });
+
+            let scheduled = false;
+            window.addEventListener("scroll", () => {
+                const now = performance.now();
+                if (now < window.mdlive._suppressUntil || (!pointerDown && now - lastInput > 500) || scheduled) {
+                    return;
+                }
+
+                scheduled = true;
+                requestAnimationFrame(() => {
+                    scheduled = false;
+                    // Ramkę nadrzędną ogranicza CSP frame-ancestors (--embedded); w wiadomości jest tylko numer linii
+                    window.parent.postMessage({ type: "mdlive.scroll", line: window.mdlive.lineAtOffset(window.scrollY) }, "*");
+                });
+            }, { passive: true });
+        })();
         """;
 }
