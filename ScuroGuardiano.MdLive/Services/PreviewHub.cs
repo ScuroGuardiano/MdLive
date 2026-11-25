@@ -45,6 +45,27 @@ internal sealed class PreviewHub
         }
     }
 
+    public void PublishScroll(double line)
+    {
+        lock (_lock)
+        {
+            // Ta sama linia po raz drugi nic nie zmienia, a bez tego każde zdarzenie przewinięcia edytora
+            // wysyłałoby skrypt do przeglądarki
+            if (_snapshot.ScrollVersion > 0 && _snapshot.ScrollLine.Equals(line))
+            {
+                return;
+            }
+
+            var next = _snapshot with
+            {
+                ScrollLine = line,
+                ScrollVersion = _snapshot.ScrollVersion + 1
+            };
+            Volatile.Write(ref _snapshot, next);
+            NotifySubscribers();
+        }
+    }
+
     public PreviewSubscription Subscribe()
     {
         var signal = Channel.CreateBounded<bool>(new BoundedChannelOptions(1)

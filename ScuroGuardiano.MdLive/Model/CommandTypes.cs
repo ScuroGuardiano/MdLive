@@ -4,4 +4,5 @@ public static class CommandTypes
 {
     public const string Content = "content";
     public const string Cursor = "cursor";
+    public const string Scroll = "scroll";
 }

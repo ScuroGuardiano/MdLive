@@ -286,13 +286,26 @@ app.MapGet("/preview/sse", async (PreviewHub hub, IDatastarService datastarServi
     using var subscription = hub.Subscribe();
     long sentDocument = 0;
     long sentCursor = 0;
+    long sentScroll = 0;
 
     await foreach (var snapshot in subscription.ReadAllAsync(cancellationToken))
     {
+        var documentChanged = false;
         if (snapshot.DocumentVersion != sentDocument && snapshot.Document is { } document)
         {
-            await datastarService.PatchElementsAsync(snapshot.Document.Html, cancellationToken);
+            await datastarService.PatchElementsAsync(document.Html, cancellationToken);
             sentDocument = snapshot.DocumentVersion;
+            documentChanged = true;
+        }
+
+        // Scroll sync: góra podglądu na linii, którą edytor ma na górze. Po zmianie treści jeszcze raz,
+        // bo bloki nad tą linią mogły urosnąć albo zniknąć.
+        if (snapshot.ScrollVersion != sentScroll || (documentChanged && snapshot.ScrollVersion > 0))
+        {
+            var line = snapshot.ScrollLine.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            // language=javascript
+            await datastarService.ExecuteScriptAsync($"window.mdlive.scrollToLine({line})", cancellationToken);
+            sentScroll = snapshot.ScrollVersion;
         }
 
         if (snapshot.CursorVersion != sentCursor)
