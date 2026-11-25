@@ -99,11 +99,28 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         // Ciasteczka nie są rozdzielane po portach, więc dwa podglądy na 127.0.0.1 (np. z dwóch neovimów)
         // nadpisywałyby sobie wspólne ciasteczko. Port nie jest jeszcze znany, więc losowy sufiks na każdy start.
-        options.Cookie.Name = $"mdlive_{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4))}";
+        var cookieSuffix = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
         options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Strict;
-        // Podgląd działa po HTTP na loopbacku
-        options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+
+        if (serveArguments.Embedded)
+        {
+            // Podgląd w iframe w edytorze (webview VS Code to inny origin, więc kontekst cross-site).
+            // Chromium nie zapisze tam ciasteczka Strict ani Lax, przechodzi tylko SameSite=None; Secure.
+            // Partitioned (CHIPS): ciasteczko żyje w słoiku przypisanym do strony najwyższego poziomu,
+            // czyli do edytora; inna strona osadzająca podgląd go nie dostanie. Secure działa po HTTP,
+            // bo loopback to dla przeglądarek bezpieczny kontekst. __Host-: tylko ten host, Path=/, bez Domain.
+            options.Cookie.Name = $"__Host-mdlive_{cookieSuffix}";
+            options.Cookie.SameSite = SameSiteMode.None;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.Extensions.Add("Partitioned");
+        }
+        else
+        {
+            options.Cookie.Name = $"mdlive_{cookieSuffix}";
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            // Podgląd działa po HTTP na loopbacku
+            options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+        }
 
         // Podgląd to nie aplikacja z formularzem logowania: zamiast przekierowań zwykłe kody statusu
         options.Events.OnRedirectToLogin = context =>
@@ -202,6 +219,19 @@ const string LoginPage =
     </body>
     </html>
     """;
+
+if (serveArguments.FrameAncestors is { } frameAncestors)
+{
+    // Tylko edytor może osadzić podgląd. Append, nie nadpisanie: endpoint obrazków dokłada własną politykę,
+    // a przy kilku nagłówkach CSP przeglądarka egzekwuje wszystkie.
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers.Append(Microsoft.Net.Http.Headers.HeaderNames.ContentSecurityPolicy, $"frame-ancestors {frameAncestors}");
+        await next();
+    });
+
+    app.Logger.LogInformation("Embedded mode, the preview can be framed by: {FrameAncestors}", frameAncestors);
+}
 
 // Wymiana tokenu dostępu na ciasteczko sesji
 app.MapPost("/auth", async (AuthRequest request, PreviewAccessToken token, HttpContext context) =>
@@ -314,6 +344,10 @@ static void PrintUsage(TextWriter writer)
                                   `mdlive trust`. Only for directories nobody else writes to. Repeatable.
                    --AllowedHosts <hosts>  Host headers to accept, ; separated (default: loopback only).
                    --Logging:<key> <value>  Logging configuration, e.g. --Logging:LogLevel:Default Debug.
+                   --embedded  For a preview framed inside an editor (VS Code webview): session cookie
+                               SameSite=None; Secure; Partitioned and CSP frame-ancestors.
+                   --frame-ancestors <sources>  Who may frame it with --embedded
+                               (default: 'self' vscode-webview: vscode-file:).
                    Other options are rejected.
           trust    Review and trust .mdlive/config.csx with everything it loads. Only a trusted
                    config script is run, any change to it has to be trusted again.

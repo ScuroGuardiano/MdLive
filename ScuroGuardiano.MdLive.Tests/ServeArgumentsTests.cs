@@ -62,3 +62,49 @@ public class ServeArgumentsTests
         Assert.Empty(errors);
     }
 }
+
+public class EmbeddedArgumentsTests
+{
+    [Fact]
+    public void NotEmbeddedByDefault()
+    {
+        var parsed = ServeArguments.Parse([], out _);
+
+        Assert.False(parsed.Embedded);
+        Assert.Null(parsed.FrameAncestors);
+    }
+
+    [Fact]
+    public void Embedded_UsesDefaultFrameAncestors()
+    {
+        var parsed = ServeArguments.Parse(["--embedded"], out var errors);
+
+        Assert.Empty(errors);
+        Assert.True(parsed.Embedded);
+        Assert.Equal(ServeArguments.DefaultFrameAncestors, parsed.FrameAncestors);
+    }
+
+    [Theory]
+    [InlineData(new[] { "--embedded", "--frame-ancestors", "http://127.0.0.2:*" }, "http://127.0.0.2:*")]
+    [InlineData(new[] { "--frame-ancestors=http://127.0.0.2:*", "--embedded" }, "http://127.0.0.2:*")]
+    public void Embedded_WithCustomFrameAncestors(string[] args, string expected)
+    {
+        var parsed = ServeArguments.Parse(args, out var errors);
+
+        Assert.Empty(errors);
+        Assert.Equal(expected, parsed.FrameAncestors);
+    }
+
+    [Theory]
+    [InlineData(new[] { "--embedded=yes" }, "--embedded takes no value")]
+    [InlineData(new[] { "--frame-ancestors", "'self'" }, "--frame-ancestors only makes sense with --embedded")]
+    [InlineData(new[] { "--embedded", "--frame-ancestors" }, "--frame-ancestors needs a value")]
+    [InlineData(new[] { "--embedded", "--frame-ancestors", "'self'; script-src *" }, "without ; or ,")]
+    [InlineData(new[] { "--embedded", "--frame-ancestors", "'self', evil" }, "without ; or ,")]
+    public void InvalidEmbeddedOptions_AreRejected(string[] args, string expected)
+    {
+        ServeArguments.Parse(args, out var errors);
+
+        Assert.Contains(errors, e => e.Contains(expected));
+    }
+}

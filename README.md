@@ -62,7 +62,7 @@ See [docs/neovim.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/n
 | Command                     | Description                                                                   |
 |-----------------------------|-------------------------------------------------------------------------------|
 | `mdlive init [--force]`     | Create `.mdlive/` with default `style.css` and `template.html`. Refuses a non-empty `.mdlive/` unless `--force`, which overwrites only those two files. |
-| `mdlive serve [--trust <dir>]` | Start the preview server for an editor, see [Editor integration](#editor-integration). `--trust` runs `config.csx` under `<dir>` without `mdlive trust`. Also `--AllowedHosts` and `--Logging:<key>`, any other option is rejected. |
+| `mdlive serve [--trust <dir>]` | Start the preview server for an editor, see [Editor integration](#editor-integration). `--trust` runs `config.csx` under `<dir>` without `mdlive trust`, `--embedded` prepares the preview for an editor's built-in browser. Also `--AllowedHosts` and `--Logging:<key>`, any other option is rejected. |
 | `mdlive trust`              | Review and trust `.mdlive/config.csx`, see [docs/scripting.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/scripting.md). |
 | `mdlive version`            | Show the version of mdlive and of its ConfigBase, for `#r "nuget: ..."`.      |
 | `mdlive help`               | Show usage.                                                                   |
@@ -96,6 +96,13 @@ meant to be overridden in `config.csx`, see [docs/scripting.md](https://github.c
 the preview is, reads one JSON message per line on stdin (buffer content, cursor line) and exits when
 stdin is closed. Logs go to stderr. The exact protocol is described in
 [docs/neovim.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/neovim.md#protocol), which is also the reference implementation for other editors.
+
+Editors that show the preview in their own panel, framed inside a webview (VS Code), start the server with
+`--embedded`. A normal session cookie (`SameSite=Strict`) isn't stored in such a frame, so in this mode it's
+`SameSite=None; Secure; Partitioned`: partitioned ([CHIPS](https://developer.mozilla.org/en-US/docs/Web/Privacy/Guides/Third-party_cookies/Partitioned_cookies))
+means it's kept only for the editor that framed the preview, another site framing it gets nothing.
+`Content-Security-Policy: frame-ancestors` allows framing only by VS Code webviews by default, change it with
+`--frame-ancestors <sources>`.
 
 ## Security
 
