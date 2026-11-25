@@ -50,7 +50,7 @@ Saving a file in `.mdlive/` re-renders the preview, picking up style and templat
 
 ### Trusting `config.csx`
 
-A C# config script ([docs/scripting.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/docs/scripting.md)) runs only
+A C# config script ([docs/scripting.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/scripting.md)) runs only
 once trusted. Until then the preview uses the default config and shows a banner. `:MdLiveTrust` lists every
 file the config consists of with its SHA-256 and offers:
 

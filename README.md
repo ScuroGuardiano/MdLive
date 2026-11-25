@@ -20,7 +20,7 @@ the result to the browser as you type. A ready-made [Neovim plugin](https://gith
 - scroll sync: the block under the cursor stays in the middle of the preview,
 - your HTML template, CSS and scripts from `.mdlive/`, re-applied as soon as you change them,
 - server-side syntax highlighting with CSS classes you style yourself
-  ([docs/syntax-highlight.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/docs/syntax-highlight.md)),
+  ([docs/syntax-highlight.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/syntax-highlight.md)),
 - images referenced from the document, served from its directory.
 
 ## Install
@@ -34,7 +34,7 @@ dotnet tool install -g ScuroGuardiano.MdLive
 Make sure `~/.dotnet/tools` is in your `PATH`. To build it from source instead:
 
 ```sh
-dotnet pack MdLive/ScuroGuardiano.MdLive -c Release -o ./nupkg
+dotnet pack ScuroGuardiano.MdLive -c Release -o ./nupkg
 dotnet tool install -g --add-source ./nupkg ScuroGuardiano.MdLive
 ```
 
@@ -63,7 +63,7 @@ See [docs/neovim.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/n
 |-----------------------------|-------------------------------------------------------------------------------|
 | `mdlive init [--force]`     | Create `.mdlive/` with default `style.css` and `template.html`. Refuses a non-empty `.mdlive/` unless `--force`, which overwrites only those two files. |
 | `mdlive serve [--trust <dir>]` | Start the preview server for an editor, see [Editor integration](#editor-integration). `--trust` runs `config.csx` under `<dir>` without `mdlive trust`. Also `--AllowedHosts` and `--Logging:<key>`, any other option is rejected. |
-| `mdlive trust`              | Review and trust `.mdlive/config.csx`, see [docs/scripting.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/docs/scripting.md). |
+| `mdlive trust`              | Review and trust `.mdlive/config.csx`, see [docs/scripting.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/scripting.md). |
 | `mdlive version`            | Show the version of mdlive and of its ConfigBase, for `#r "nuget: ..."`.      |
 | `mdlive help`               | Show usage.                                                                   |
 
@@ -81,14 +81,14 @@ where someone else could plant a `.mdlive`. Every file is optional and re-read o
 | `styles.html`   | Raw HTML for `<%styles%>`, e.g. `<link>` tags to external stylesheets.       |
 | `script.js`     | Inlined in a `<script>` tag, after `scripts.html`.                          |
 | `scripts.html`  | Raw HTML for `<%scripts%>`, e.g. third-party `<script>` tags.                |
-| `config.csx`    | C# script overriding [`MdLiveConfigurator`](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/ScuroGuardiano.MdLive.ConfigBase/MdLiveConfigurator.cs). Runs only once trusted with `mdlive trust`. |
+| `config.csx`    | C# script overriding [`MdLiveConfigurator`](https://github.com/ScuroGuardiano/MdLive/blob/master/ScuroGuardiano.MdLive.ConfigBase/MdLiveConfigurator.cs). Runs only once trusted with `mdlive trust`. |
 
 Without `template.html` a minimal built-in template is used. The title comes from the first
 level 1 heading, falling back to the file name.
 
 The Markdown pipeline, template loading and the rest are defined in
-[`MdLiveConfigurator`](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/ScuroGuardiano.MdLive.ConfigBase/MdLiveConfigurator.cs), with virtual methods
-meant to be overridden in `config.csx`, see [docs/scripting.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/docs/scripting.md).
+[`MdLiveConfigurator`](https://github.com/ScuroGuardiano/MdLive/blob/master/ScuroGuardiano.MdLive.ConfigBase/MdLiveConfigurator.cs), with virtual methods
+meant to be overridden in `config.csx`, see [docs/scripting.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/scripting.md).
 
 ## Editor integration
 
@@ -115,9 +115,9 @@ The preview server is meant for the local user only:
   and the old token. Open the preview from the editor again (`:MdLiveOpen`),
 - `.mdlive/config.csx` is code, so it runs only after you've reviewed and trusted its exact content with
   `mdlive trust`. Any change to it or to the files it loads needs trusting again, until then the default
-  config is used. Details in [docs/scripting.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/docs/scripting.md#security),
+  config is used. Details in [docs/scripting.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/scripting.md#security),
 - only image files are served from the document's directory, never anything outside it.
 
 ## License
 
-[MIT](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/LICENSE)
+[MIT](https://github.com/ScuroGuardiano/MdLive/blob/master/LICENSE)

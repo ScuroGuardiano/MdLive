@@ -1,6 +1,6 @@
 # ScuroGuardiano.MdLive.ConfigBase
 
-Base class for [MdLive](https://github.com/ScuroGuardiano/SGLibCS/tree/master/MdLive) config scripts. Override
+Base class for [MdLive](https://github.com/ScuroGuardiano/MdLive) config scripts. Override
 `MdLiveConfigurator` in `.mdlive/config.csx` to change the Markdig pipeline, the document, the template, styles,
 scripts or the title.
 
@@ -25,5 +25,5 @@ public class MyConfig(ILogger<MdLiveConfigurator> logger) : MdLiveConfigurator(l
 MdLive doesn't download anything for this reference, it maps it to its own `ScuroGuardiano.MdLive.ConfigBase`.
 Use the version matching your `mdlive`, otherwise it logs a warning. Any other `#r "nuget: ..."` is rejected.
 
-See [docs/scripting.md](https://github.com/ScuroGuardiano/SGLibCS/blob/master/MdLive/docs/scripting.md) for
+See [docs/scripting.md](https://github.com/ScuroGuardiano/MdLive/blob/master/docs/scripting.md) for
 the whole guide, including trusting the script with `mdlive trust` and editor setup.
