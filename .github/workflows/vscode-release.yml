@@ -1,0 +1,127 @@
+# Builds the VS Code extension (.vsix) and creates a GitHub release with it when a tag is pushed.
+#
+# Tag format: vscode/v<major>.<minor>.<patch>, e.g. vscode/v0.1.0. The version has to match
+# vscode/package.json. The Marketplace doesn't accept semver pre-release suffixes, so only X.Y.Z.
+#
+#   git tag vscode/v0.1.0
+#   git push origin vscode/v0.1.0
+#
+# The release is created with GITHUB_TOKEN, and events from it don't start other workflows, so it doesn't
+# trigger nuget-publish.yml. That workflow would ignore a vscode/ tag anyway.
+name: Release VS Code extension
+
+on:
+  push:
+    tags: ["vscode/v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # npm ci runs install scripts of dependencies, so this job gets no write permissions
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Version from tag
+        id: version
+        env:
+          # Passed through env, not interpolated into the script, so a crafted tag can't inject commands
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^vscode/v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Tag '$TAG' is not vscode/v<major>.<minor>.<patch>"
+            exit 1
+          fi
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Check package.json version
+        working-directory: vscode
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          actual=$(node -p 'require("./package.json").version')
+          if [[ "$actual" != "$VERSION" ]]; then
+            echo "::error::Tag says $VERSION, vscode/package.json says $actual"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        working-directory: vscode
+        run: npm ci
+
+      - name: Package
+        working-directory: vscode
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        # vscode:prepublish compiles the TypeScript first
+        run: npx vsce package --out "mdlive-$VERSION.vsix"
+
+      - name: Upload .vsix
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vsix
+          path: vscode/mdlive-${{ steps.version.outputs.version }}.vsix
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    # Only this job can write: it creates the release and uploads the .vsix built above
+    permissions:
+      contents: write
+    steps:
+      - name: Download .vsix
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: vsix
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          # Notes only from changes since the previous extension release, not since any tag in the repository
+          # sort -V: comparing strings would put v0.10.0 before v0.9.0
+          previous=$( { gh api "repos/$REPO/git/matching-refs/tags/vscode/v" --jq '.[].ref' | sed 's|^refs/tags/||'; echo "$TAG"; } \
+            | sort -uV | awk -v tag="$TAG" '$0 == tag { print prev; exit } { prev = $0 }')
+
+          args=(-f tag_name="$TAG")
+          if [[ -n "$previous" ]]; then
+            args+=(-f previous_tag_name="$previous")
+          fi
+          generated=$(gh api "repos/$REPO/releases/generate-notes" "${args[@]}" --jq .body)
+
+          {
+            echo "Install the attached \`mdlive-$VERSION.vsix\`:"
+            echo
+            echo '```sh'
+            echo "code --install-extension mdlive-$VERSION.vsix"
+            echo '```'
+            echo
+            echo "or in VS Code: Extensions → ··· → Install from VSIX. Needs \`mdlive\` with \`serve --embedded\`:"
+            echo "\`dotnet tool install -g ScuroGuardiano.MdLive\`."
+            echo
+            echo "$generated"
+          } > notes.md
+
+          gh release create "$TAG" "mdlive-$VERSION.vsix" \
+            --repo "$REPO" \
+            --title "MdLive for VS Code $VERSION" \
+            --notes-file notes.md \
+            --verify-tag
