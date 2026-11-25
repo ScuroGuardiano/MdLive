@@ -45,13 +45,13 @@ internal sealed class PreviewHub
         }
     }
 
-    public void PublishScroll(double line)
+    public void PublishScroll(double line, ScrollAnchor anchor = ScrollAnchor.Top)
     {
         lock (_lock)
         {
             // Ta sama linia po raz drugi nic nie zmienia, a bez tego każde zdarzenie przewinięcia edytora
             // wysyłałoby skrypt do przeglądarki
-            if (_snapshot.ScrollVersion > 0 && _snapshot.ScrollLine.Equals(line))
+            if (_snapshot.ScrollVersion > 0 && _snapshot.ScrollLine.Equals(line) && _snapshot.ScrollAnchor == anchor)
             {
                 return;
             }
@@ -59,6 +59,7 @@ internal sealed class PreviewHub
             var next = _snapshot with
             {
                 ScrollLine = line,
+                ScrollAnchor = anchor,
                 ScrollVersion = _snapshot.ScrollVersion + 1
             };
             Volatile.Write(ref _snapshot, next);

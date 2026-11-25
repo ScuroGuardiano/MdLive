@@ -47,4 +47,38 @@ public class ScrollSyncTests
         Assert.Equal((5, 1L), (hub.Current.CursorLine, hub.Current.CursorVersion));
         Assert.Equal((20.0, 1L), (hub.Current.ScrollLine, hub.Current.ScrollVersion));
     }
+
+    [Theory]
+    [InlineData("""{"type":"scroll","line":5,"anchor":"center"}""", "Center")]
+    [InlineData("""{"type":"scroll","line":5,"anchor":"CENTER"}""", "Center")]
+    [InlineData("""{"type":"scroll","line":5,"anchor":"top"}""", "Top")]
+    [InlineData("""{"type":"scroll","line":5}""", "Top")]
+    [InlineData("""{"type":"scroll","line":5,"anchor":"sideways"}""", "Top")]
+    public void ScrollAnchor_IsParsed_DefaultingToTop(string json, string expected)
+    {
+        var scroll = Assert.IsType<EditorMessage.Scroll>(JsonSerializer.Deserialize<EditorMessage>(json, Options));
+
+        Assert.Equal(Enum.Parse<ScrollAnchor>(expected), ScrollAnchors.Parse(scroll.Anchor));
+    }
+
+    [Fact]
+    public void PublishScroll_SameLineDifferentAnchor_IsAChange()
+    {
+        var hub = new PreviewHub();
+
+        hub.PublishScroll(10, ScrollAnchor.Top);
+        hub.PublishScroll(10, ScrollAnchor.Center);
+        hub.PublishScroll(10, ScrollAnchor.Center);
+
+        Assert.Equal(2, hub.Current.ScrollVersion);
+        Assert.Equal(ScrollAnchor.Center, hub.Current.ScrollAnchor);
+    }
+
+    [Theory]
+    [InlineData("Top", "top")]
+    [InlineData("Center", "center")]
+    public void ScriptName_IsAFixedConstant(string anchor, string expected)
+    {
+        Assert.Equal(expected, Enum.Parse<ScrollAnchor>(anchor).ToScriptName());
+    }
 }

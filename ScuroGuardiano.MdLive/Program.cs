@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.Extensions.Options;
 using ScuroGuardiano.MdLive.Commands;
+using ScuroGuardiano.MdLive.Model;
 using ScuroGuardiano.MdLive.ConfigBase;
 using ScuroGuardiano.MdLive.Scripting;
 using ScuroGuardiano.MdLive.Services;
@@ -298,13 +299,13 @@ app.MapGet("/preview/sse", async (PreviewHub hub, IDatastarService datastarServi
             documentChanged = true;
         }
 
-        // Scroll sync: góra podglądu na linii, którą edytor ma na górze. Po zmianie treści jeszcze raz,
-        // bo bloki nad tą linią mogły urosnąć albo zniknąć.
+        // Scroll sync: linia z góry (albo środka) edytora na górze (albo środku) podglądu. Po zmianie treści
+        // jeszcze raz, bo bloki nad tą linią mogły urosnąć albo zniknąć.
         if (snapshot.ScrollVersion != sentScroll || (documentChanged && snapshot.ScrollVersion > 0))
         {
             var line = snapshot.ScrollLine.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
             // language=javascript
-            await datastarService.ExecuteScriptAsync($"window.mdlive.scrollToLine({line})", cancellationToken);
+            await datastarService.ExecuteScriptAsync($"window.mdlive.scrollToLine({line}, \"{snapshot.ScrollAnchor.ToScriptName()}\")", cancellationToken);
             sentScroll = snapshot.ScrollVersion;
         }
 

@@ -110,14 +110,17 @@ The plugin talks to `mdlive serve` over stdio:
   - `{"type":"content","path":"/abs/file.md","text":"..."}`, the whole buffer,
   - `{"type":"cursor","line":42}`, 1-based cursor line. The preview brings the block with the cursor to the
     middle of the screen (this plugin with `sync = "cursor"`),
-  - `{"type":"scroll","line":120.5}`, the source line at the top of the editor, 1-based, may be fractional.
-    The preview puts that line at its top, interpolating between blocks with `data-line`, and does it again
-    after every content change. Editors that follow their own scrolling (the VS Code extension) send this
+  - `{"type":"scroll","line":120.5,"anchor":"center"}`, the source line at the top of the editor, or with
+    `"anchor":"center"` in its middle, 1-based, may be fractional. The preview puts that line at the same place
+    (top or middle), interpolating between blocks with `data-line`, and does it again after every content
+    change. Without `anchor` (or with an unknown value) it's the top. The middle keeps what you look at in sync
+    even when images, one source line each, are much taller in the preview than in the editor. Editors that follow their own scrolling (the VS Code extension) send this
     instead of `cursor` (this plugin by default, `sync = "scroll"`).
 - Closing stdin stops the server. Logs go to stderr.
 - **Preview to editor** (only when the preview is framed, `--embedded`): when the user scrolls the preview
   (wheel, keyboard, dragging the scrollbar), the page sends the parent frame
-  `postMessage({ type: "mdlive.scroll", line: 120.5 })` with the source line now at its top. Scrolling caused
+  `postMessage({ type: "mdlive.scroll", line: 120.5, anchor: "center" })` with the source line now at the same
+  place the last `scroll` message used (top or middle). Scrolling caused
   by `scroll` messages or by content changes isn't reported, so editor and preview don't keep moving each other.
 
 ## Moving from SGLibCS

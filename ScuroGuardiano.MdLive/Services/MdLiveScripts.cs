@@ -134,9 +134,25 @@ internal static class MdLiveScripts
                 return prev.line + (next.line - prev.line) * Math.min(1, (offset - prev.top) / (next.top - prev.top));
             },
 
-            // Wołane przez serwer, gdy edytor się przewinie: linia z góry edytora na górze podglądu
-            scrollToLine(line) {
-                const top = Math.max(0, Math.round(this.offsetOfLine(line)));
+            // Ostatnia kotwica od edytora: "top" albo "center". Przewinięcia podglądu raportujemy tak samo.
+            _anchor: "top",
+
+            // Punkt podglądu, w którym leży kotwica, względem jego góry
+            _anchorOffset() {
+                return this._anchor === "center" ? window.innerHeight / 2 : 0;
+            },
+
+            // Linia źródła w miejscu kotwicy (góra albo środek podglądu)
+            anchorLine() {
+                return this.lineAtOffset(window.scrollY + this._anchorOffset());
+            },
+
+            // Wołane przez serwer, gdy edytor się przewinie: linia z góry (środka) edytora na górze (środku) podglądu.
+            // Środek: różnice wysokości (obrazek to jedna linia źródła i setki pikseli) rozchodzą się na brzegi,
+            // zamiast zbierać się pod wyrównaną górą.
+            scrollToLine(line, anchor = "top") {
+                this._anchor = anchor === "center" ? "center" : "top";
+                const top = Math.max(0, Math.round(this.offsetOfLine(line) - this._anchorOffset()));
                 if (Math.abs(top - window.scrollY) < 1) {
                     return;
                 }
@@ -177,7 +193,7 @@ internal static class MdLiveScripts
                 requestAnimationFrame(() => {
                     scheduled = false;
                     // Ramkę nadrzędną ogranicza CSP frame-ancestors (--embedded); w wiadomości jest tylko numer linii
-                    window.parent.postMessage({ type: "mdlive.scroll", line: window.mdlive.lineAtOffset(window.scrollY) }, "*");
+                    window.parent.postMessage({ type: "mdlive.scroll", line: window.mdlive.anchorLine(), anchor: window.mdlive._anchor }, "*");
                 });
             }, { passive: true });
         })();
