@@ -75,7 +75,10 @@ git push origin vscode/v0.1.0
 ```
 
 `.github/workflows/vscode-release.yml` checks that the tag matches `package.json`, packages the extension, and
-creates a GitHub release with `mdlive-<version>.vsix` and the changes since the previous `vscode/v*` tag. Only
+creates a GitHub release with `mdlive-<version>.vsix` and the changes since the previous `vscode/v*` tag. The
+same `.vsix` goes to the Visual Studio Marketplace and Open VSX through Trusted Publishing (OIDC), without tokens.
+Both trusted publisher policies use: owner `ScuroGuardiano`, repository `MdLive`, workflow `vscode-release.yml`,
+environment `release`. Only
 `X.Y.Z` versions are accepted, the Marketplace doesn't allow semver pre-release suffixes.
 
 `test/e2e.mjs` drives VS Code through Playwright. It opens the preview, reads the framed page inside the webview,

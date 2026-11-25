@@ -102,6 +102,7 @@
     "@types/vscode": "1.100.0",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.1.1",
+    "ovsx": "1.4.0",
     "playwright-core": "1.65.1",
     "typescript": "7.0.2"
   }
