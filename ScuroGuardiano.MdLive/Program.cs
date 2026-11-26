@@ -299,13 +299,14 @@ app.MapGet("/preview/sse", async (PreviewHub hub, IDatastarService datastarServi
             documentChanged = true;
         }
 
-        // Scroll sync: linia z góry (albo środka) edytora na górze (albo środku) podglądu. Po zmianie treści
+        // Scroll sync: linia z edytora na tej samej wysokości podglądu (góra, środek albo wysokość kursora). Po zmianie treści
         // jeszcze raz, bo bloki nad tą linią mogły urosnąć albo zniknąć.
         if (snapshot.ScrollVersion != sentScroll || (documentChanged && snapshot.ScrollVersion > 0))
         {
             var line = snapshot.ScrollLine.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            var position = snapshot.ScrollPosition.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
             // language=javascript
-            await datastarService.ExecuteScriptAsync($"window.mdlive.scrollToLine({line}, \"{snapshot.ScrollAnchor.ToScriptName()}\")", cancellationToken);
+            await datastarService.ExecuteScriptAsync($"window.mdlive.scrollToLine({line}, {position})", cancellationToken);
             sentScroll = snapshot.ScrollVersion;
         }
 

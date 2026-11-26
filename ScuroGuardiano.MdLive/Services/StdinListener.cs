@@ -75,7 +75,7 @@ internal sealed class StdinListener : BackgroundService
                     break;
 
                 case EditorMessage.Scroll scroll when double.IsFinite(scroll.Line):
-                    _hub.PublishScroll(Math.Max(1, scroll.Line), ScrollAnchors.Parse(scroll.Anchor));
+                    _hub.PublishScroll(Math.Max(1, scroll.Line), ScrollAnchors.ToPosition(scroll.Anchor, scroll.Position));
                     break;
             }
         }

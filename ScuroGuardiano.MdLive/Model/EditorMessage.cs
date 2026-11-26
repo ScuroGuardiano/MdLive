@@ -12,8 +12,8 @@ internal closed record EditorMessage()
     internal sealed record Cursor(int Line) :  EditorMessage;
 
     /// <summary>
-    /// Source line at the top (or, with <c>"anchor": "center"</c>, in the middle) of the editor, 1-based, may be
-    /// fractional. The preview puts it at the same place.
+    /// Source line (1-based, may be fractional) and where it is in the editor's height: <c>"position"</c> 0 to 1,
+    /// or <c>"anchor"</c> <c>"top"</c> (0, the default) / <c>"center"</c> (0.5). The preview puts it at the same place.
     /// </summary>
-    internal sealed record Scroll(double Line, string? Anchor = null) : EditorMessage;
+    internal sealed record Scroll(double Line, string? Anchor = null, double? Position = null) : EditorMessage;
 }
