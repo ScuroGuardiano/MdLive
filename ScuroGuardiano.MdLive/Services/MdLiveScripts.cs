@@ -134,24 +134,28 @@ internal static class MdLiveScripts
                 return prev.line + (next.line - prev.line) * Math.min(1, (offset - prev.top) / (next.top - prev.top));
             },
 
-            // Ostatnia kotwica od edytora: "top" albo "center". Przewinięcia podglądu raportujemy tak samo.
-            _anchor: "top",
+            // Ostatnia wysokość od edytora jako ułamek ekranu: 0 góra, 0.5 środek, albo wysokość kursora.
+            // Przewinięcia podglądu raportujemy na tej samej wysokości.
+            _position: 0,
 
             // Punkt podglądu, w którym leży kotwica, względem jego góry
             _anchorOffset() {
-                return this._anchor === "center" ? window.innerHeight / 2 : 0;
+                return window.innerHeight * this._position;
             },
 
-            // Linia źródła w miejscu kotwicy (góra albo środek podglądu)
+            // Linia źródła w miejscu kotwicy
             anchorLine() {
                 return this.lineAtOffset(window.scrollY + this._anchorOffset());
             },
 
-            // Wołane przez serwer, gdy edytor się przewinie: linia z góry (środka) edytora na górze (środku) podglądu.
-            // Środek: różnice wysokości (obrazek to jedna linia źródła i setki pikseli) rozchodzą się na brzegi,
-            // zamiast zbierać się pod wyrównaną górą.
-            scrollToLine(line, anchor = "top") {
-                this._anchor = anchor === "center" ? "center" : "top";
+            // Wołane przez serwer: linia źródła na tej samej wysokości podglądu, na której jest w edytorze.
+            // position: ułamek wysokości (0 góra, 0.5 środek, wysokość kursora) albo dawne "top" / "center".
+            // Środek albo kursor: różnice wysokości (obrazek to jedna linia źródła i setki pikseli) rozchodzą się
+            // na brzegi, zamiast zbierać się pod wyrównaną górą.
+            scrollToLine(line, position = 0) {
+                this._position = typeof position === "number" && Number.isFinite(position)
+                    ? Math.min(1, Math.max(0, position))
+                    : position === "center" ? 0.5 : 0;
                 const top = Math.max(0, Math.round(this.offsetOfLine(line) - this._anchorOffset()));
                 if (Math.abs(top - window.scrollY) < 1) {
                     return;
@@ -193,7 +197,9 @@ internal static class MdLiveScripts
                 requestAnimationFrame(() => {
                     scheduled = false;
                     // Ramkę nadrzędną ogranicza CSP frame-ancestors (--embedded); w wiadomości jest tylko numer linii
-                    window.parent.postMessage({ type: "mdlive.scroll", line: window.mdlive.anchorLine(), anchor: window.mdlive._anchor }, "*");
+                    const position = window.mdlive._position;
+                    // anchor dla rozszerzeń sprzed position (0.3.0)
+                    window.parent.postMessage({ type: "mdlive.scroll", line: window.mdlive.anchorLine(), position, anchor: position === 0.5 ? "center" : "top" }, "*");
                 });
             }, { passive: true });
         })();

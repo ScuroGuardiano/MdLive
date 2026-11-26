@@ -62,23 +62,38 @@ public class ScrollSyncTests
     }
 
     [Fact]
-    public void PublishScroll_SameLineDifferentAnchor_IsAChange()
+    public void PublishScroll_SameLineDifferentPosition_IsAChange()
     {
         var hub = new PreviewHub();
 
-        hub.PublishScroll(10, ScrollAnchor.Top);
-        hub.PublishScroll(10, ScrollAnchor.Center);
-        hub.PublishScroll(10, ScrollAnchor.Center);
+        hub.PublishScroll(10, 0);
+        hub.PublishScroll(10, 0.5);
+        hub.PublishScroll(10, 0.5);
 
         Assert.Equal(2, hub.Current.ScrollVersion);
-        Assert.Equal(ScrollAnchor.Center, hub.Current.ScrollAnchor);
+        Assert.Equal(0.5, hub.Current.ScrollPosition);
     }
 
     [Theory]
-    [InlineData("Top", "top")]
-    [InlineData("Center", "center")]
-    public void ScriptName_IsAFixedConstant(string anchor, string expected)
+    [InlineData(null, null, 0.0)]
+    [InlineData("center", null, 0.5)]
+    [InlineData("top", null, 0.0)]
+    [InlineData(null, 0.3, 0.3)]
+    [InlineData("center", 0.2, 0.2)]
+    [InlineData(null, 1.7, 1.0)]
+    [InlineData(null, -0.5, 0.0)]
+    public void ToPosition_ExplicitPositionWins_AnchorIsAShorthand(string? anchor, double? position, double expected)
     {
-        Assert.Equal(expected, Enum.Parse<ScrollAnchor>(anchor).ToScriptName());
+        Assert.Equal(expected, ScrollAnchors.ToPosition(anchor, position));
+    }
+
+    [Fact]
+    public void ScrollMessage_WithPosition_IsDeserialized()
+    {
+        var scroll = Assert.IsType<EditorMessage.Scroll>(
+            JsonSerializer.Deserialize<EditorMessage>("""{"type":"scroll","line":42,"position":0.37}""", Options));
+
+        Assert.Equal(0.37, scroll.Position);
+        Assert.Equal(0.37, ScrollAnchors.ToPosition(scroll.Anchor, scroll.Position));
     }
 }
