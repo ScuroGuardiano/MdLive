@@ -92,7 +92,12 @@
             "The line in the middle of the editor is kept in the middle of the preview. What you look at stays in sync even when images make the preview much taller than the source.",
             "The line at the top of the editor is kept at the top of the preview, like the built-in Markdown preview. Tall images make the rest drift apart."
           ],
-          "markdownDescription": "Which line scroll sync aligns between the editor and the preview."
+          "markdownDescription": "Which line scroll sync aligns between the editor and the preview when you scroll."
+        },
+        "mdlive.followCursor": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When the cursor moves (keyboard, Vim motions, typing, clicks), the preview puts the cursor line at the same height as in the editor. Scrolling without moving the cursor aligns the line from `#mdlive.scrollAnchor#`."
         },
         "mdlive.throttleMs": {
           "type": "number",
