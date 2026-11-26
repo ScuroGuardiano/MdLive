@@ -94,9 +94,12 @@ export class MdLiveServer implements vscode.Disposable {
     this.send({ type: "cursor", line });
   }
 
-  /** Linia źródła na górze albo w środku edytora (scroll sync), 1-based. */
-  sendScroll(line: number, anchor: "top" | "center"): void {
-    this.send({ type: "scroll", line, anchor });
+  /**
+   * Scroll sync: linia źródła (1-based, ułamkowa) i wysokość, na której ma stanąć w podglądzie (0 góra, 1 dół).
+   * anchor dla starszych mdlive, które nie znają position: najbliższa z dwóch obsługiwanych wysokości.
+   */
+  sendScroll(line: number, position: number): void {
+    this.send({ type: "scroll", line, position, anchor: position < 0.25 ? "top" : "center" });
   }
 
   private send(message: object): void {

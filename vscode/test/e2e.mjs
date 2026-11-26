@@ -31,6 +31,8 @@ const settings = {
   ...(process.env.MDLIVE_E2E_NO_STICKY === '1' ? { 'editor.stickyScroll.enabled': false } : {}),
   // MDLIVE_E2E_ANCHOR=top: wyrównywanie góry zamiast domyślnego środka
   ...(process.env.MDLIVE_E2E_ANCHOR ? { 'mdlive.scrollAnchor': process.env.MDLIVE_E2E_ANCHOR } : {}),
+  // MDLIVE_E2E_NO_FOLLOW=1: podgląd nie podąża za kursorem
+  ...(process.env.MDLIVE_E2E_NO_FOLLOW === '1' ? { 'mdlive.followCursor': false } : {}),
   ...(process.env.MDLIVE_PATH ? { 'mdlive.path': process.env.MDLIVE_PATH } : {}),
   ...(restricted ? { 'security.workspace.trust.startupPrompt': 'never', 'security.workspace.trust.untrustedFiles': 'open' } : {}),
 };
@@ -41,6 +43,7 @@ mkdirSync(join(workspace, '.mdlive'), { recursive: true });
 // Długi dokument dla scroll sync: 120 sekcji po nagłówku i akapicie, co dziesiąta z obrazkiem 900 px
 // (jedna linia źródła, setki pikseli w podglądzie: przypadek, w którym wyrównana góra rozjeżdża resztę)
 const anchorMode = process.env.MDLIVE_E2E_ANCHOR === 'top' ? 'top' : 'center';
+const followCursor = process.env.MDLIVE_E2E_NO_FOLLOW !== '1';
 mkdirSync(join(workspace, 'assets'), { recursive: true });
 writeFileSync(join(workspace, 'assets', 'tall.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="600" height="900" fill="#468"/></svg>');
 const sections = Array.from({ length: 120 }, (_, i) =>
@@ -179,14 +182,6 @@ try {
   const stillP = await previewTopLine();
   check('no feedback loop: both stay where they are', stillE === e && Math.abs(stillP - p) < 0.01, `editor ${e} -> ${stillE}, preview ${p.toFixed(2)} -> ${stillP.toFixed(2)}`);
 
-  // Pisanie w widocznym fragmencie nie przesuwa edytora (podgląd zmienia układ, ale to nie wraca do edytora)
-  await window.mouse.click(editorBox.x + editorBox.width / 2, editorBox.y + editorBox.height / 3);
-  await window.keyboard.type(' edited');
-  await sleep(1500);
-  const typedE = await editorTopLine();
-  const typedP = await previewTopLine();
-  check('typing does not make the editor jump, preview keeps its position', typedE === stillE && Math.abs(typedP - stillP) < 1.5 && Math.abs(typedE - typedP) <= 1.5, `editor ${stillE} -> ${typedE}, preview ${typedP.toFixed(1)}`);
-
   // Przypadek ze zgłoszenia: linia ze środka edytora ma być na środku widocznej części podglądu, mimo obrazków
   // po 900 px między górą a środkiem. Przy wyrównanej tylko górze lądowała na dole albo poza ekranem.
   if (anchorMode === 'center') {
@@ -196,6 +191,75 @@ try {
     check('line in the middle of the editor is in the middle of the preview (tall images)', where.y >= where.h * 0.25 && where.y <= where.h * 0.75,
       `line ${middle} at y=${Math.round(where.y)} of ${where.h}`);
   }
+
+  // Podążanie za kursorem: linia z kursorem ma być w podglądzie na tej samej wysokości (0-1) co w edytorze.
+  // Wysokość w edytorze z pikseli kursora, w podglądzie z offsetOfLine środka tej linii.
+  const cursorHeights = async () => {
+    const editor = await window.evaluate(() => {
+      const root = document.querySelector('.editor-instance .monaco-editor');
+      const box = root.getBoundingClientRect();
+      const cursor = root.querySelector('.cursors-layer .cursor').getBoundingClientRect();
+      return { line: Number(root.querySelector('.line-numbers.active-line-number')?.textContent), at: (cursor.top + cursor.height / 2 - box.top) / box.height };
+    });
+    const preview = await frame.evaluate((line) => (window.mdlive.offsetOfLine(line + 0.5) - window.scrollY) / window.innerHeight, editor.line);
+    return { line: editor.line, editor: editor.at, preview };
+  };
+  const show = (h) => `line ${h.line}: editor ${h.editor.toFixed(2)}, preview ${h.preview.toFixed(2)}`;
+  const aligned = (h) => Number.isFinite(h.line) && Math.abs(h.editor - h.preview) <= 0.06;
+
+  // Pisanie w widocznym fragmencie nie przesuwa edytora (podgląd zmienia układ, ale to nie wraca do edytora)
+  await window.mouse.click(editorBox.x + editorBox.width / 2, editorBox.y + editorBox.height / 3);
+  await window.keyboard.type(' edited');
+  await sleep(1500);
+  const typedE = await editorTopLine();
+  check('typing does not make the editor jump', typedE === stillE, `editor ${stillE} -> ${typedE}`);
+  let h = await cursorHeights();
+  if (followCursor) {
+    check('typing: the cursor line is at the same height in the preview', aligned(h), show(h));
+  }
+
+  // Ruch kursora klawiaturą w obrębie widoku (bez przewinięcia edytora), w górę i w dół
+  const scrollBefore = await frame.evaluate(() => window.scrollY);
+  for (const [key, times] of [['ArrowDown', 12], ['ArrowUp', 5]]) {
+    for (let i = 0; i < times; i++) {
+      await window.keyboard.press(key);
+      await sleep(30);
+    }
+    await sleep(800);
+    h = await cursorHeights();
+    if (followCursor) {
+      check(`${key} inside the view: the preview follows the cursor`, aligned(h) && (await editorTopLine()) === typedE, show(h));
+    } else {
+      const scrollNow = await frame.evaluate(() => window.scrollY);
+      check(`mdlive.followCursor off: ${key} inside the view leaves the preview alone`, scrollNow === scrollBefore, `scrollY ${scrollBefore} -> ${scrollNow}`);
+    }
+  }
+
+  // Ruch kursora za krawędź: edytor przewija się za kursorem, podgląd dalej trzyma linię z kursorem
+  await window.keyboard.press('PageDown');
+  await window.keyboard.press('PageDown');
+  await sleep(1000);
+  h = await cursorHeights();
+  if (followCursor) {
+    check('PageDown: the preview follows the cursor', aligned(h) && (await editorTopLine()) > typedE + 20, show(h));
+  } else {
+    // Bez podążania przewinięcie za kursorem synchronizuje się tak jak kółkiem
+    const e2 = await editorTopLine();
+    const p2 = await previewTopLine();
+    check('mdlive.followCursor off: PageDown scrolls the preview like the wheel', e2 > typedE + 20 && Math.abs(p2 - e2) <= 1.5, `editor ${e2}, preview ${p2.toFixed(1)}`);
+  }
+
+  // Przewinięcie kółkiem po ruchu kursora wraca do wyrównywania wysokości z mdlive.scrollAnchor
+  await window.mouse.move(editorBox.x + editorBox.width / 2, editorBox.y + editorBox.height / 2);
+  for (let i = 0; i < 4; i++) {
+    await window.mouse.wheel(0, 300);
+    await sleep(50);
+  }
+  await sleep(1500);
+  e = await editorTopLine();
+  p = await previewTopLine();
+  check(`[${anchorMode}] scrolling after cursor moves aligns the ${anchorMode} line again`, Math.abs(p - e) <= 1.5, `editor ${e}, preview ${p.toFixed(1)}`);
+
 
   // Przeładowanie webview: iframe ładuje się od nowa bez tokenu, sesję trzyma tylko ciasteczko Partitioned
   await runCommand('Developer: Reload Webviews');
