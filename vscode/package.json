@@ -2,7 +2,7 @@
   "name": "mdlive",
   "displayName": "SGMdLive",
   "description": "ScuroGuardiano's live Markdown preview rendered with your own Markdig pipeline, template and styles (mdlive), in a split next to the editor. Does not have any relation to MdLive extensions by jackspace.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "ScuroGuardiano",
   "license": "MIT",
   "repository": {
